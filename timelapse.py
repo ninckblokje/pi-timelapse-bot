@@ -1,27 +1,54 @@
 import _thread
+import configparser
 import logging
+import logging.config
 import time
 import picamera
+from threading import Lock
+
+_app_status = {
+    'stopTimelapse': False
+}
+config = configparser.ConfigParser()
+data_lock = Lock()
 
 def main():
-    logging.basicConfig(level=logging.DEBUG, format='%(asctime)s %(threadName)s %(message)s', datefmt='%Y-%m-%dT%H:%M:%S%z')
+    _thread.start_new_thread(do_timelapse, (_app_status,))
 
-    _thread.start_new_thread(do_timelapse, ())
+    try:
+        while 1:
+            pass
+    except KeyboardInterrupt:
+        logging.info('Received keyboard interrupt, waiting 10 seconds')
+        with data_lock:
+            app_status['stopTimelapse'] = True
+        time.sleep(10)
 
-    while 1:
-        pass
+def do_timelapse(appStatus):
+    fileformat = config['TIMELAPSE'].get('fileformat')
+    interval = config['TIMELAPSE'].getfloat('interval')
 
-def do_timelapse():
     with picamera.PiCamera() as camera:
-        logging.info('Warming up camera')
+        logging.info('Starting timelapse with interval %s', interval)
         camera.start_preview()
-        time.sleep(5)
+        time.sleep(interval)
 
-        for filename in camera.capture_continuous('camera/img{timestamp:%Y-%m-%d-%H-%M-%S}.jpg'):
+        for filename in camera.capture_continuous(fileformat):
             logging.debug('Captured image %s', filename)
-            time.sleep(5)
+            time.sleep(interval)
+
+            if appStatus['stopTimelapse']:
+                break
         
+        logging.info('Stopping timelapse')
         camera.stop_preview()
 
+def read_config():
+    logging.config.fileConfig('config/logging.ini')
+
+    logging.info('Reading configuration')
+    config.read('config/config.ini')
+
 if __name__ == '__main__':
+    read_config()
     main()

@@ -1,3 +1,4 @@
 camera/*.jpg
+config/config.ini
 output/*.mp4
 .venv/
