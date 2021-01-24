@@ -1,4 +1,6 @@
+__pycache__
 camera/*.jpg
 config/config.ini
+config/*.p
 output/*.mp4
 .venv/

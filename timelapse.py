@@ -1,54 +1,63 @@
 import _thread
-import configparser
+import glob
 import logging
-import logging.config
+import os
 import time
 import picamera
 from threading import Lock
 
-_app_status = {
-    'stopTimelapse': False
+_config = None
+_data_lock = Lock()
+_status = {
+    'isRunning': False,
+    'stop': False
 }
-config = configparser.ConfigParser()
-data_lock = Lock()
 
-def main():
-    _thread.start_new_thread(do_timelapse, (_app_status,))
+def init(config):
+    global _config
+    _config = config
 
-    try:
-        while 1:
-            pass
-    except KeyboardInterrupt:
-        logging.info('Received keyboard interrupt, waiting 10 seconds')
-        with data_lock:
-            app_status['stopTimelapse'] = True
-        time.sleep(10)
+def get_last_img():
+    outputdir = _config['TIMELAPSE'].get('outputdir')
+    list_of_files = glob.glob(outputdir + '/*')
+    if len(list_of_files) == 0:
+        return None
+    return max(list_of_files, key=os.path.getctime)
 
-def do_timelapse(appStatus):
-    fileformat = config['TIMELAPSE'].get('fileformat')
-    interval = config['TIMELAPSE'].getfloat('interval')
+def is_running():
+    return _status['isRunning']
+
+def start():
+    _thread.start_new_thread(_do_timelapse, (_status,))
+
+def stop():
+    with _data_lock:
+        _status['stop'] = True
+
+def _do_timelapse(status):
+    with _data_lock:
+        _status['isRunning'] = True
+        _status['stop'] = False
+
+    fileformat = _config['TIMELAPSE'].get('fileformat')
+    interval = _config['TIMELAPSE'].getfloat('interval')
+    outputdir = _config['TIMELAPSE'].get('outputdir')
 
     with picamera.PiCamera() as camera:
         logging.info('Starting timelapse with interval %s', interval)
         camera.start_preview()
         time.sleep(interval)
 
-        for filename in camera.capture_continuous(fileformat):
+        for filename in camera.capture_continuous(outputdir + '/' + fileformat):
             logging.debug('Captured image %s', filename)
             time.sleep(interval)
 
-            if appStatus['stopTimelapse']:
+            if status['stop']:
                 break
         
         logging.info('Stopping timelapse')
         camera.stop_preview()
-
-def read_config():
-    logging.config.fileConfig('config/logging.ini')
-
-    logging.info('Reading configuration')
-    config.read('config/config.ini')
-
-if __name__ == '__main__':
-    read_config()
-    main()
+    
+    with _data_lock:
+        _status['isRunning'] = False
+        _status['stop'] = False
