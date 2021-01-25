@@ -1,6 +1,7 @@
 import logging
 import pickle
 import timelapse
+import uuid
 from telegram.ext import (
     CommandHandler,
     Updater
@@ -14,19 +15,31 @@ _updater = None
 _chatkey = None
 _trusted_chats = ()
 
-def wrap_cmd(func):
-    def wrapper(*args, **kwargs):
-        try:
-            return func(*args, **kwargs)
-        except:
-            logging.exception('Exception in command')
-    return wrapper
+def wrap_telegram_cmd(verifyChatId = True):
+    def inner_wrap_telegram_cmd(func):
+        def wrapper(*args, **kwargs):
+            functionName = func.__name__
+            try:
+                chatId = args[0].effective_chat.id
+                if verifyChatId and chatId not in _trusted_chats:
+                    logging.warn('Received %s command from unauthorized chat %s', functionName, chatId)
+                    return
+                elif not verifyChatId:
+                    logging.info('Received %s command from unknown chat %s', functionName, chatId)
+                else:
+                    logging.debug('Received %s command from chat %s', functionName, chatId)
+
+                return func(*args, **kwargs)
+            except:
+                logging.exception('Exception in command: %s', functionName)
+        return wrapper
+    return inner_wrap_telegram_cmd
 
 def init(config):
     _load_trusted_chats()
 
     global _chatkey
-    _chatkey = config['TELEGRAM'].get('chatkey')
+    _chatkey = str(uuid.uuid4())
     token = config['TELEGRAM'].get('token')
 
     global _updater, _dispatcher
@@ -44,18 +57,14 @@ def init(config):
     _dispatcher.add_handler(CommandHandler('timelapse_stop', _timelapse_stop))
 
 def start_polling():
-    logging.info('Starting Telegram polling')
+    logging.info('Starting Telegram polling, chat key: %s', _chatkey)
     _updater.start_polling()
     _updater.idle()
 
-@wrap_cmd
+@wrap_telegram_cmd()
 def _timelapse_last_img(update, context):
     chatId = update.effective_chat.id
-    if chatId not in _trusted_chats:
-        logging.warn('Received timelapse_last_img command from unauthorized chat %s', chatId)
-        return
-    
-    logging.debug('Received timelapse_last_img command from chat %s', chatId)
+
     lastImg = timelapse.get_last_img()
     if lastImg == None:
         context.bot.send_message(chat_id=chatId, text='No timelapse images found')
@@ -63,31 +72,24 @@ def _timelapse_last_img(update, context):
         with open(lastImg, 'rb') as p:
             context.bot.send_photo(chat_id=chatId, photo=p)
 
-@wrap_cmd
+@wrap_telegram_cmd()
 def _timelapse_start(update, context):
     chatId = update.effective_chat.id
-    if chatId not in _trusted_chats:
-        logging.warn('Received _timelapse_start command from unauthorized chat %s', chatId)
-        return
-    
-    logging.debug('Received _timelapse_start command from chat %s', chatId)
+
     timelapse.start()
     context.bot.send_message(chat_id=chatId, text='Timelapse recording started')
 
-@wrap_cmd
+@wrap_telegram_cmd()
 def _timelapse_stop(update, context):
     chatId = update.effective_chat.id
-    if chatId not in _trusted_chats:
-        logging.warn('Received _timelapse_stop command from unauthorized chat %s', chatId)
-        return
-    
-    logging.debug('Received _timelapse_stop command from chat %s', chatId)
+
     timelapse.stop()
     context.bot.send_message(chat_id=chatId, text='Timelapse recording stopped')
 
-@wrap_cmd
+@wrap_telegram_cmd(verifyChatId=False)
 def _start_cmd(update, context):
     chatId = update.effective_chat.id
+
     receivedChatkey = context.args
     if len(receivedChatkey) == 1 and receivedChatkey[0] == _chatkey:
         logging.debug('Received start command from chat %s', chatId)
@@ -95,29 +97,21 @@ def _start_cmd(update, context):
         _add_chat_id(chatId)
         context.bot.send_message(chat_id=chatId, text='Welcome!')
     else:
-        logging.warn('Received start command from unauthorized chat %s', chatId)
+        logging.warn('Received wrong chat key for start command from unauthorized chat %s', chatId)
 
-@wrap_cmd
+@wrap_telegram_cmd()
 def _status_cmd(update, context):
     chatId = update.effective_chat.id
-    if chatId not in _trusted_chats:
-        logging.warn('Received status command from unauthorized chat %s', chatId)
-        return
-    
-    logging.debug('Received status command from chat %s', chatId)
+
     if timelapse.is_running():
         context.bot.send_message(chat_id=chatId, text='Timelapse recording is active now')
     else:
         context.bot.send_message(chat_id=chatId, text='Timelapse recording is not active')
 
-@wrap_cmd
+@wrap_telegram_cmd()
 def _stop_cmd(update, context):
     chatId = update.effective_chat.id
-    if chatId not in _trusted_chats:
-        logging.warn('Received stop command from unauthorized chat %s', chatId)
-        return
-    
-    logging.debug('Received stop command from chat %s', chatId)
+
     context.bot.send_message(chat_id=chatId, text='Bye!')
     _remove_chat_id(chatId)
 
@@ -141,7 +135,7 @@ def _load_trusted_chats():
             pickle.dump(_trusted_chats, f)
 
 def _remove_chat_id(chatId):
-    log.debug('Removing chat %s', chatId)
+    logging.debug('Removing chat %s', chatId)
     global _trusted_chats
     _trusted_chats = tuple(x for x in _trusted_chats if x != chatId)
     with open(_pickle_file, 'wb') as f:
