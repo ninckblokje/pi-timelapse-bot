@@ -53,8 +53,18 @@ def init(config):
     _dispatcher.add_handler(CommandHandler('stop', _stop_cmd))
 
     _dispatcher.add_handler(CommandHandler('timelapse_last_img', _timelapse_last_img))
+    _dispatcher.add_handler(CommandHandler('timelapse_render', _timelapse_render))
     _dispatcher.add_handler(CommandHandler('timelapse_start', _timelapse_start))
     _dispatcher.add_handler(CommandHandler('timelapse_stop', _timelapse_stop))
+
+def _renderingCallback(chatId):
+    def innerRenderingCallback(successfull, renderedFile):
+        if successfull:
+            with open(renderedFile, 'rb') as v:
+                _dispatcher.bot.send_video(chat_id=chatId, video=v)
+        else:
+            _dispatcher.bot.send_message(chat_id=chatId, text='Rendering failed')
+    return innerRenderingCallback
 
 def start_polling():
     logging.info('Starting Telegram polling, chat key: %s', _chatkey)
@@ -73,11 +83,22 @@ def _timelapse_last_img(update, context):
             context.bot.send_photo(chat_id=chatId, photo=p)
 
 @wrap_telegram_cmd()
+def _timelapse_render(update, context):
+    chatId = update.effective_chat.id
+
+    if timelapse.render(_renderingCallback(chatId)):
+        context.bot.send_message(chat_id=chatId, text='Timelapse rendering started')
+    else:
+        context.bot.send_message(chat_id=chatId, text='Unable to start timelapse rendering')
+
+@wrap_telegram_cmd()
 def _timelapse_start(update, context):
     chatId = update.effective_chat.id
 
-    timelapse.start()
-    context.bot.send_message(chat_id=chatId, text='Timelapse recording started')
+    if timelapse.start():
+        context.bot.send_message(chat_id=chatId, text='Timelapse recording started')
+    else:
+        context.bot.send_message(chat_id=chatId, text='Unable to start timelapse recording')
 
 @wrap_telegram_cmd()
 def _timelapse_stop(update, context):
@@ -149,6 +170,7 @@ def _set_cmds():
         ("stop", "Stops interaction"),
         ("status", "Current status of running jobs, for example timelapse recording"),
         ("timelapse_last_img", "Return the last image created for a timelapse recorder"),
+        ("timelapse_render", "Render a timelapse video"),
         ("timelapse_start", "Start a timelapse recording"),
         ("timelapse_stop", "Stop a timelapse recording")
     ])
