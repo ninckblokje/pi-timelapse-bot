@@ -1,0 +1,15 @@
+[CAMERA]
+
+[TELEGRAM]
+token=
+
+[TIMELAPSE_IMG]
+fileformat=img-{timestamp:%%Y-%%m-%%d-%%H-%%M-%%S}.jpg
+interval=5.0
+outputdir=camera
+
+[TIMELAPSE_VIDEO]
+cmd=./convert.sh
+inputGlob=camera/*.jpg
+fileformat=timelapse-{timestamp:%%Y-%%m-%%d-%%H-%%M-%%S}.mp4
+outputdir=output
