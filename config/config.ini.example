@@ -1,4 +1,10 @@
 [CAMERA]
+awb=auto
+exposure=auto
+fraction=
+sensorMode=0
+shutterSpeed=0
+warmup=5.0
 
 [TELEGRAM]
 token=

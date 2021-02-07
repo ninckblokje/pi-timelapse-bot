@@ -6,6 +6,7 @@ import os
 import subprocess
 import time
 import picamera
+from fractions import Fraction
 from threading import Lock
 
 _config = None
@@ -54,6 +55,21 @@ def stop():
 def _can_start_timelapse():
     return not _status['isRendering'] and not _status['isRunning']
 
+def _configure_camera(camera: picamera.PiCamera):
+    camera.shutter_speed = int(_config['CAMERA'].get('shutterSpeed'))
+
+    warmup = _config['CAMERA'].getfloat('warmup')
+    logging.debug('Warming camera up for %s seconds', warmup)
+    time.sleep(warmup)
+
+    camera.awb_mode = _config['CAMERA'].get('awb')
+    camera.exposure_mode = _config['CAMERA'].get('exposure')
+
+    logging.debug('Camera config:')
+    logging.debug('- awb: %s', camera.awb_mode)
+    logging.debug('- exposure: %s', camera.exposure_mode)
+    logging.debug('- shutter speed: %s', camera.shutter_speed)
+
 def _do_render(renderingFinishedCallback = None):
     try:
         cmd = _config['TIMELAPSE_VIDEO'].get('cmd')
@@ -84,10 +100,11 @@ def _do_timelapse(status):
     fileformat = _config['TIMELAPSE_IMG'].get('fileformat')
     interval = _config['TIMELAPSE_IMG'].getfloat('interval')
     outputdir = _config['TIMELAPSE_IMG'].get('outputdir')
+    
+    with _init_camera() as camera:
+        _configure_camera(camera)
 
-    with picamera.PiCamera() as camera:
-        logging.info('Starting timelapse with interval %s', interval)
-        camera.start_preview()
+        logging.info('Starting timelapse with interval of %s seconds', interval)
         time.sleep(interval)
 
         for filename in camera.capture_continuous(outputdir + '/' + fileformat):
@@ -103,3 +120,15 @@ def _do_timelapse(status):
     with _data_lock:
         _status['isRunning'] = False
         _status['stop'] = False
+
+def _init_camera() -> picamera.PiCamera:
+    fractionValue = _config['CAMERA'].get('fraction')
+    fraction = None if fractionValue == '' else Fraction(fractionValue)
+    sensorMode = int(_config['CAMERA'].get('sensorMode'))
+
+    logging.debug('Camera init:')
+    logging.debug('- Framerate: %s', fractionValue)
+    logging.debug('- Sensor mode: %s', sensorMode)
+
+    return picamera.PiCamera(framerate=fraction,sensor_mode=sensorMode)
+
