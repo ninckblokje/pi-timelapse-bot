@@ -6,6 +6,7 @@ import time
 import picamera
 import telegrambot
 import timelapse
+import microbit
 from threading import Lock
 
 config = configparser.ConfigParser()
@@ -13,6 +14,9 @@ config = configparser.ConfigParser()
 def main():
     timelapse.init(config)
     telegrambot.init(config)
+
+    microbit.init(config)
+    microbit.start()
 
     telegrambot.start_polling()
 
