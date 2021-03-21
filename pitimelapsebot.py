@@ -2,11 +2,11 @@ import _thread
 import configparser
 import logging
 import logging.config
-import time
+import microbit
 import picamera
 import telegrambot
+import time
 import timelapse
-import microbit
 from threading import Lock
 
 config = configparser.ConfigParser()
@@ -20,12 +20,9 @@ def main():
 
     telegrambot.start_polling()
 
-    # try:
-    #     while 1:
-    #         pass
-    # except KeyboardInterrupt:
-    #     logging.info('Received keyboard interrupt, waiting 10 seconds')
-    #     time.sleep(10)
+    microbit.stop()
+    logging.info('Stopping, waiting 5 seconds')
+    time.sleep(5)
 
 def read_config():
     logging.config.fileConfig('config/logging.ini')
