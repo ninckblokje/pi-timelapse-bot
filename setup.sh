@@ -1,6 +1,6 @@
 #!/bin/bash
 
-sudo apt install -y ffmpeg python3-venv
+sudo apt install -y ffmpeg python3-venv python3-wheel
 
 python3 -m venv .venv
 source .venv/bin/activate
