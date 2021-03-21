@@ -14,8 +14,13 @@ def init(config):
 def start():
     global _ubit
 
-    adapter = outputdir = _config['MICROBIT'].get('adapter')
-    device = outputdir = _config['MICROBIT'].get('device')
+    enabled = _config['MICROBIT'].get('enabled')
+    if enabled == "False":
+        logging.info("micro:bit disabled")
+        return
+
+    adapter = _config['MICROBIT'].get('adapter')
+    device = _config['MICROBIT'].get('device')
     logging.info('Connecting to micro:bit %s using adapter %s', device, adapter)
 
     _ubit = microbit.Microbit(adapter_addr=adapter,

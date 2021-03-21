@@ -6,6 +6,11 @@ sensorMode=0
 shutterSpeed=0
 warmup=5.0
 
+[MICROBIT]
+adapter=
+device=
+enabled=False
+
 [TELEGRAM]
 token=
 
